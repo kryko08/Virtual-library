@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="shadow p-3 mb-5 bg-body rounded">
+	<form method="POST">
+        {{ form.csfr_token }}
+		{{ form.hidden_tag() }}
+
+		{{ form.first_name.label(class="form-label") }}
+
+		{{ form.first_name(class="form-control") }}
+		<br/>
+
+        {{ form.second_name.label(class="form-label") }}
+
+		{{ form.second_name(class="form-control") }}
+		<br/>
+
+		{{ form.user_name.label(class="form-label") }}
+
+		{{ form.user_name(class="form-control") }}
+            {% for error in form.user_name.errors %}
+                <span class="text-danger">{{ error }}</span>
+            {% endfor %}
+		<br/>
+
+		{{ form.birth_number.label(class="form-label") }}
+
+		{{ form.birth_number(class="form-control") }}
+            {% for error in form.birth_number.errors %}
+                <span class="text-danger">{{ error }}</span>
+            {% endfor %}
+		<br/>
+
+		{{ form.address.label(class="form-label") }}
+
+		{{ form.address(class="form-control") }}
+		<br/>
+		
+		{{ form.password.label(class="form-label") }}
+
+		{{ form.password(class="form-control") }}
+            {% for error in form.password.errors %}
+                <span class="text-danger">{{ error }}</span>
+            {% endfor %}
+		<br/>
+
+		<br/>
+
+		<input type="submit" value="Registrovat" class="btn btn-secondary">
+
+
+	</form>
+</div>
+{% endblock %}
