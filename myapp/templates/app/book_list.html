@@ -1,4 +1,24 @@
 {% extends 'base.html' %}
 {% block content %}
-<p>Tady budou všechny knihy</p>
+<div class="row row-cols-1 row-cols-sm-3 row-cols-md-5 g-3">
+    {% for book in books %}
+    <div class="col">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h3> {{book["book_title"]}} </h3>
+                <p class="card-text">Autor: <strong>{{ book["author"] }}</strong> </br>
+                Volných kopií: <strong>{{ book["licences_available"] }}/{{ book["number_of_licences"] }}</strong></p> 
+                <div class="d-flex justify-content-between align-items-center">
+                        {% if current_user.is_superuser %}
+                        <a href="{{url_for('admin.edit_book', _id=book["_id"])}}" class="btn btn-sm btn-outline-secondary" role="button">Upravit záznam</a>
+                        {% else %}
+                        <a href="{{url_for('library.book_detail', _id=book["_id"])}}" class="btn btn-sm btn-outline-secondary" role="button">Vypůjčit knihu</a>
+                        {% endif %}
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
 {% endblock  %}

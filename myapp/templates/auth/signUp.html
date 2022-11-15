@@ -16,10 +16,10 @@
 		{{ form.second_name(class="form-control") }}
 		<br/>
 
-		{{ form.user_name.label(class="form-label") }}
+		{{ form.username.label(class="form-label") }}
 
-		{{ form.user_name(class="form-control") }}
-            {% for error in form.user_name.errors %}
+		{{ form.username(class="form-control") }}
+            {% for error in form.username.errors %}
                 <span class="text-danger">{{ error }}</span>
             {% endfor %}
 		<br/>

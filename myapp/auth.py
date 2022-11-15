@@ -61,12 +61,16 @@ class User(UserMixin):
     def from_id(cls, _id):
         data = mongo.db.users.find_one({"_id": _id})
         if data is not None:
+            if data["books"]:
+                data.pop("books")
             return cls(**data)
 
     @classmethod
     def from_username(cls, username):
         data = mongo.db.users.find_one({"username": username})
         if data is not None:
+            if data["books"]:
+                data.pop("books")
             return cls(**data)
 
     def to_json(self):
@@ -90,23 +94,49 @@ class User(UserMixin):
     def save_to_mongo(self):
         mongo.db.users.insert_one(self.to_json())
 
-    def update_document(self):
-        mongo.db.user.update(
-            {
-                "id": self._id
-            },
-            self.to_json()
+    def update_document(self, fields_to_update):
+        query = {"_id": self._id}
+        update = {"$set": fields_to_update}
+        mongo.db.users.update_one(
+            query, update
         )
 
+    @staticmethod
+    def changed_fields(old_values, new_values):
+        to_update = {}
+        # keys are the same
+        for key in old_values.keys():
+            if new_values[key] != old_values[key]:
+                to_update[key] = new_values[key]
+        return to_update
+
+    @staticmethod
+    def can_borrow_more_books(_id):
+        # pipeline = [
+        #     {
+        #         "$cond": {
+        #             "$if": {
+                        
+        #             }                
+        #         }
+        #     }
+        # ]
+        # num_books = mongo.db.users.aggregate(
+        #     pipeline
+        # )
+        pass
+
+
     
-@bp.route("/singUp", methods=["GET", "POST"])
+    
+@bp.route("/sing-up", methods=["GET", "POST"])
 def sign_up():
     form = RegistrationForm()
     if request.method == "POST" and form.validate():
         # Get data from form
         first_name = form.first_name.data
         second_name = form.second_name.data
-        username = form.user_name.data
+        username = form.username.data
 
         birth_number = form.birth_number.data
         address = form.address.data

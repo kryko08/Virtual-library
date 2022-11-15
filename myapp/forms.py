@@ -1,11 +1,19 @@
 from xml.dom import ValidationErr
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField
-from wtforms.validators import (DataRequired, Length, ValidationError)
+from wtforms import (
+    StringField,
+    PasswordField,
+    SubmitField,
+    IntegerField,
+    FileField,  
+    DateField
+    )
+from wtforms.validators import (DataRequired, Length, ValidationError, regexp)
 
 import re
 
 from .mongodb import mongo
+
 
 
 # User Forms
@@ -61,7 +69,7 @@ class UsernameCheck():
 class RegistrationForm(FlaskForm):
     first_name = StringField("Jméno", validators=[DataRequired(), Length(min= 2, max=50)])
     second_name = StringField("Příjmení", validators=[DataRequired(), Length(min = 2, max=50)])
-    user_name = StringField("Uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25), UsernameCheck()])
+    username = StringField("Uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25), UsernameCheck()])
 
     birth_number = StringField("Rodné číslo", validators=[DataRequired(), Length(max=15), BirthNumberCheck()])
     address = StringField("Adresa", validators=[DataRequired(), Length(max=50)])
@@ -77,9 +85,31 @@ class LoginForm(FlaskForm):
 # ------------------------
 # Admin Forms
 class UserVerificationForm(FlaskForm):
-    first_name = StringField("first name", validators=[DataRequired(), Length(min= 2, max=50)])
-    second_name = StringField("second name", validators=[DataRequired(), Length(min = 2, max=50)])
-    user_name = StringField("uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25)])
+    first_name = StringField("Jméno", validators=[DataRequired(), Length(min= 2, max=50)])
+    second_name = StringField("Příjmení", validators=[DataRequired(), Length(min = 2, max=50)])
+    username = StringField("uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25)])
 
     birth_number = StringField("rodné číslo", validators=[DataRequired(), Length(max=15)])
     address = StringField("adresa", validators=[DataRequired(), Length(max=50)])  
+
+
+class ImageCheck():
+    def __init__(self, message = None):
+        if not message:
+            message = "Chybné data v souboru, zkuste nahrát jiný"
+        self.message = message
+    
+    def __call__(self, form, field):
+        s = field.data
+        if s:
+            print(type(s))
+            print(s)
+
+
+class BookCreationForm(FlaskForm):
+    book_title = StringField("Název knihy", validators=[DataRequired()])
+    author = StringField("Autor knihy", validators=[DataRequired()])
+    number_of_pages = IntegerField("Počet stran", validators=[DataRequired()])
+    title_page = FileField("Vyber .JPG obrázek", validators =[DataRequired()])
+    year_published = IntegerField("Rok vydání", validators=[DataRequired()])
+    number_of_licences = IntegerField("Počet licencí", validators=[DataRequired()])

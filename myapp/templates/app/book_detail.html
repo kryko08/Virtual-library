@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="card">
+    <div class="card-body">
+        <div class="row">
+            <div class="col-lg-5 col-md-5 col-sm-6">
+                <div class="white-box text-center"><img src="https://via.placeholder.com/430x600/00CED1/000000" class="img-responsive"></div>
+            </div>
+            <div class="col-lg-7 col-md-7 col-sm-6">
+                <h3 class="box-title mt-5">Název knihy: <strong>{{book["book_title"]}}</strong></h3>
+                <h4 class="box-title mt-2">Autor: <strong>{{book["author"]}}</strong></h4>
+                <h4 class="box-title mt-2">Informace o knížce:</h4>
+                <ul class="list-unstyled">
+                    <li><i class="fa fa-check text-success"></i>Počet stran: <strong>{{book["number_of_pages"]}}</strong></li>
+                    <li><i class="fa fa-check text-success"></i>Rok vydání: <strong>{{book["year_published"].year}}</strong></li>
+                    <li><i class="fa fa-check text-success"></i>Počet volných licencí: <strong>{{book["licences_available"]}}/{{book["number_of_licences"]}}</strong></li>
+                </ul>
+                <form method="POST">
+                    {% if has_currently_borrowed %}
+                    <button type="submit" class="btn btn-primary" value="return_book" name="action">Vrátit knihu</button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary" value="borrow_book" name="action">Vypůjčit knihu</button>
+                    {% endif %}
+                </form>
+            </div>
+        </div>
+    </div>
+</div
+
+{% endblock  %}

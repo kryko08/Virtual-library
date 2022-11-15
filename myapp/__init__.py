@@ -7,7 +7,7 @@ from . import auth
 from . import library
 from . import admin
 
-from .mongodb import mongo, login_manager
+from .mongodb import login_manager, mongo
 
 
 def create_app(config_object = "myapp.configmodule"):
@@ -23,7 +23,6 @@ def create_app(config_object = "myapp.configmodule"):
     # connect auth sessions
     login_manager.init_app(app)
 
-    #print(mongo.db.testcollection.find())
 
     # register blueprints
     app.register_blueprint(auth.bp)
