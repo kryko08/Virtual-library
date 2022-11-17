@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="py-2 text-center container">
+    <div class="row py-lg-2">
+      <div class="col-lg-6 col-md-8 mx-auto">
+        <h3 class="fw-light">Vyhledat uživatele</h3>
+        <form method="POST">
+            {{ form.csfr_token }}
+            {{ form.hidden_tag() }}
+    
+            {{ form.first_name.label(class="form-label") }}
+    
+            {{ form.first_name(class="form-control") }}
+            <br/>
+            
+            {{ form.second_name.label(class="form-label") }}
+    
+            {{ form.second_name(class="form-control") }}
+            <br/>
+
+            {{ form.birth_number.label(class="form-label") }}
+    
+            {{ form.birth_number(class="form-control") }}
+            <br/>
+
+            {{ form.address.label(class="form-label") }}
+    
+            {{ form.address(class="form-control") }}
+            <br/>
+
+            {{ form.order_by.label(class="form-label") }}
+    
+            {{ form.order_by(class="form-control") }}
+            <br/>
+            
+
+            <br/>
+            <input type="submit" value="Vyhledat" class="btn btn-secondary">
+        </form>
+      </div>
+    </div>
+</section>
+
+
+
+{% endblock  %}

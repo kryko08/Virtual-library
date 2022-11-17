@@ -61,16 +61,12 @@ class User(UserMixin):
     def from_id(cls, _id):
         data = mongo.db.users.find_one({"_id": _id})
         if data is not None:
-            if data["books"]:
-                data.pop("books")
             return cls(**data)
 
     @classmethod
     def from_username(cls, username):
         data = mongo.db.users.find_one({"username": username})
         if data is not None:
-            if data["books"]:
-                data.pop("books")
             return cls(**data)
 
     def to_json(self):
@@ -110,26 +106,8 @@ class User(UserMixin):
                 to_update[key] = new_values[key]
         return to_update
 
-    @staticmethod
-    def can_borrow_more_books(_id):
-        # pipeline = [
-        #     {
-        #         "$cond": {
-        #             "$if": {
-                        
-        #             }                
-        #         }
-        #     }
-        # ]
-        # num_books = mongo.db.users.aggregate(
-        #     pipeline
-        # )
-        pass
-
-
     
-    
-@bp.route("/sing-up", methods=["GET", "POST"])
+@bp.route("/sign-up", methods=["GET", "POST"])
 def sign_up():
     form = RegistrationForm()
     if request.method == "POST" and form.validate():

@@ -4,3 +4,4 @@ python-dotenv
 Flask-WTF
 flask-login
 Pillow
+pandas
