@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block content %}
+<h2>Informace o uživateli</h2>
+<div class="col-lg-8">
+    <div class="card mb-4">
+      <div class="card-body">
+        <div class="row">
+          <div class="col-sm-3">
+            <p class="mb-0">Uživatelské jméno</p>
+          </div>
+          <div class="col-sm-9">
+            <p class="text-muted mb-0">{{current_user.username}}</p>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-sm-3">
+            <p class="mb-0">Jméno a příjmení</p>
+          </div>
+          <div class="col-sm-9">
+            <p class="text-muted mb-0">{{current_user.first_name}} {{current_user.second_name}}</p>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-sm-3">
+            <p class="mb-0">Rodné číslo</p>
+          </div>
+          <div class="col-sm-9">
+            <p class="text-muted mb-0">{{current_user.birth_number}}</p>
+          </div>
+        </div>
+        <hr>
+        <div class="row">
+          <div class="col-sm-3">
+            <p class="mb-0">adresa</p>
+          </div>
+          <div class="col-sm-9">
+            <p class="text-muted mb-0">{{current_user.address}}</p>
+          </div>
+        </div>
+        <hr>
+    </div>
+</div>
+<p> Chybné údaje? Provést změny můžete <a href="{{url_for("library.edit_my_profile")}}">zde<a/>.</p>
+<br>
+
+<h2> Výpujčky </h2>
+<div class="pb-4">
+{% for message in get_flashed_messages() %}
+	
+	<div class="alert alert-warning alert-dismissible fade show" role="alert">
+	  {{ message }}
+	  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+	</div>
+{% endfor %}
+
+<h6 class="bg-light p-2 border-top border-bottom">Aktivní výpujčky</h6>
+{% if books_now is none %}
+<p> Momentálně žádné aktivní výpujčky </p>
+{% else %}
+<ul class="list-group list-group-light mb-4">
+  {% for book in books_now %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center">
+      <div class="ms-3">
+        <p class="fw-bold mb-1">{{book["book_title"]}}</p>
+        <p class="text-muted mb-0">Datum zapůjčení: {{book["borrowed_from"].strftime('%d. %m. %Y, %H:%M')}}</p>
+        <p class="text-muted mb-0">Automatické vrácení knihy: Půlnoc {{(book["borrowed_from"] + d(days=6)).strftime('%d. %m. %Y') }}</p>
+        </br>
+        <form method="POST">
+          <button type="submit" class="btn btn-primary" value={{book["book_id"]}} name="action">Vrátit knihu ihned</button>
+        </form>      
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+  {% endif %}
+<br>
+
+<h6 class="bg-light p-2 border-top border-bottom">Historie výpujček</h6>
+{% if books_past is none %}
+<p> Žádné předešlé výpujčky
+{% else %}
+<ul class="list-group list-group-light">
+  {% for book in books_past %}
+  <li class="list-group-item d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center">
+      <div class="ms-3">
+        <p class="fw-bold mb-1">{{book["book_title"]}}</p>
+        <p class="text-muted mb-0">Datum zapůjčení: {{book["borrowed_from"].strftime('%d. %m. %Y, %H:%M')}}</p>
+        <p class="text-muted mb-0">Datum vrácení: {{book["borrowed_to"].strftime('%d. %m. %Y, %H:%M')}}</p>
+      </div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+</div>
+{% endblock %}

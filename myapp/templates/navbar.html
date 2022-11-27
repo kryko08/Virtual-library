@@ -16,12 +16,15 @@
             <li class="nav-item">
               <a class="nav-link active" href="{{url_for('admin.add_book')}}">Přidat knihu</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="{{url_for('admin.export_mongo')}}">Exportovat databázi</a>
+            </li>
           {% else %}
             <li class="nav-item">
               <a class="nav-link active" href="{{url_for('library.book_list')}}">Katalog</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link active" href="{{url_for('library.user_books')}}">Historie výpujček</a>
+              <a class="nav-link active" href="{{url_for('library.my_detail')}}">Historie výpujček</a>
             </li>
           {% endif %}
         {% else %}
@@ -36,7 +39,7 @@
         <a class="nav-link active" href="{{url_for('auth.logout')}}">Logout</a>
       </li>
       <li class="nav-item">
-        <a class="nav-link active" href="">logged as {{current_user.username}}</a>
+        <a class="nav-link active" href="{{url_for('library.my_detail')}}">Přihlášen jako {{current_user.username}}</a>
       </li>
       {% else %}
       <li class="nav-item">

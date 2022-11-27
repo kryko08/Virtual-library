@@ -41,6 +41,22 @@
     </div>
 </section>
 
+<div class="row row-cols-1 row-cols-sm-3 row-cols-md-5 g-3">
+  {% for user in users %}
+  <div class="col">
+      <div class="card shadow-sm">
+          <div class="card-body">
+              <h3> {{user["username"]}} </h3>
+              <p class="card-text">Jméno: <strong>{{ user["first_name"] }} {{ user["second_name"] }}</strong></br>
+              Rodné číslo: <strong>{{ user["birth_number"] }}</strong></br>
+              Bydliště: <strong>{{ user["address"] }}</strong></p>
+              <div class="d-flex justify-content-between align-items-center">
+                      <a href="{{url_for('library.user_detail', _id=user["_id"])}}" class="btn btn-sm btn-outline-secondary" role="button">Detail</a>
+              </div>
+          </div>
+      </div>
+  </div>
+  {% endfor %}
+</div>
 
-
-{% endblock  %}
+{% endblock %}

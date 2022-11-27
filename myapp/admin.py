@@ -1,5 +1,5 @@
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for, abort
+    Blueprint, flash, g, redirect, render_template, request, session, url_for, abort, send_file
 )
 from functools import wraps
 
@@ -12,15 +12,24 @@ from .auth import User
 from .library import Book
 from .forms import UserVerificationForm, BookCreationForm, BookEditForm, UserFiltrationForm
 
-from datetime import date
+from datetime import datetime, timedelta
 
 from PIL import Image
 from io import BytesIO
 import base64
 
+import subprocess
+import shlex
+
+from .configmodule import MONGO_URI
+
+import os
+import shutil
+
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
+# User Verification Views
 @bp.route("/verify", methods = ["GET", "POST"])
 @login_required
 def user_verify_list():
@@ -30,7 +39,7 @@ def user_verify_list():
 
     waiting_list = mongo.db.users.find(
         {
-            "is_verified": False
+            "$and": [{"is_verified": False}, {"banned": False}]
         }
     )
     return render_template('admin/new_users.html', waiting_list=waiting_list)
@@ -49,20 +58,44 @@ def user_verify_detail(_id):
     form = UserVerificationForm(obj=user)
 
     if request.method == "POST" and form.validate():
-        form.populate_obj(user)
-         
-        new_values = user.to_json()
-        new_values["is_verified"] = True
 
-        updated_fields = User.changed_fields(original_values, new_values)
-        user.update_document(updated_fields)
+        if request.form["action"] == "verify":
+            form.populate_obj(user)
+            
+            new_values = user.to_json()
+            new_values["is_verified"] = True
 
-        flash(f"Uživatel {user.username} schválen")
-        return redirect(url_for('admin.user_verify_list'))
+            updated_fields = User.changed_fields(original_values, new_values)
+            user.update_document(updated_fields)
 
+            flash(f"Uživatel {user.username} schválen")
+            return redirect(url_for('admin.user_verify_list'))
+        
+        elif request.form["action"] == "ban":
+            user.update_document({"banned": True})
+            flash(f"Uživatel {user.username} zabanován")
+            return redirect(url_for('admin.user_verify_list'))
+        
     return render_template('admin/user_verification.html', form = form)
 
 
+@bp.route("users/verify/<string:_id>/direct", methods = ["GET"])
+@login_required
+def verify_account_direct(_id):
+    # Check admin status
+    if not current_user.is_superuser:
+        return abort(403)
+
+    user = User.from_id(_id)
+
+    new_values = {}
+    new_values["is_verified"] = True
+    user.update_document(new_values)
+    flash(f"Uživatel {user.username} schválen")
+    return render_template("admin/new_users.html")
+
+
+# User list   
 @bp.route("/users", methods = ["GET", "POST"])
 @login_required
 def user_list():
@@ -98,23 +131,47 @@ def user_list():
     return render_template("admin/user_list.html", form=form, users=users)
 
 
-
-@bp.route("users/verify/<string:_id>/direct", methods = ["GET"])
+# User detail
+@bp.route("/users/<string:_id>/detail", methods = ["GET", "POST"])
 @login_required
-def verify_account_direct(_id):
+def user_detail(_id):
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
+    
+    user = mongo.db.users.find_one({"_id": _id})
 
-    user = User.from_id(_id)
+    # Books
+    books_now, books_past = Book.get_user_books(_id)
+    
+    if request.method == "POST":
+        book_to_return_id = request.form["action"]
+        # Update borrowing
+        mongo.db.borrowings.update_one(
+            {
+                "user_id": _id,
+                "book_id": book_to_return_id,
+                "is_active": True
+            },
+            {"$set": 
+                {
+                    "is_active": False,
+                    "borrowed_to": datetime.now()
+                }
+            }
 
-    new_values = {}
-    new_values["is_verified"] = True
-    user.update_document(new_values)
-    flash(f"Uživatel {user.username} schválen")
-    return render_template("admin/new_users.html")
+        )
+        flash(f"Kniha vrácena")
+        # Get updated data
+        books_now, books_past = Book.get_user_books(_id)
+        return redirect(url_for("admin.user_detail", user=user, books_now=books_now, books_past=books_past, d=timedelta))
 
+    return render_template("admin/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
+ 
+   
+    
 
+# Book Manipulation Views 
 @bp.route("/add-new-book", methods = ["GET", "POST"])
 @login_required
 def add_book():
@@ -150,7 +207,7 @@ def add_book():
 @bp.route("/<string:_id>/edit", methods = ["GET", "POST"])
 @login_required
 def edit_book(_id):
-     # Check admin status
+    # Check admin status
     if not current_user.is_superuser:
         return abort(403)
 
@@ -185,24 +242,60 @@ def edit_book(_id):
     return render_template('admin/edit_book.html', form = form, currently_borrowed_by=currently_borrowed_by)
 
 
-# Přehodit do library, upravit přístupy
-@bp.route("/users/<string:_id>/detail", methods = ["GET", "POST"])
-def user_detail(_id):
-    user = mongo.db.users.find_one({"_id": _id})
-    # list all books borrowed currently
-    books_now = mongo.db.borrowings.find(
-        {
-            "user_id": _id,
-            "is_active": True
-        }
-    )
-    books_past = mongo.db.borrowings.find(
-        {
-            "user_id": _id,
-            "is_active": False
-        }
-    )
+class MongoExport():
+
+    def __init__(self, uri):
+        self.uri = uri
+
+    def get_command(self, pth):
+        command = f"mongodump --uri {self.uri} --out {pth}"
+        return command
+    
+    def execute(self, command):
+        cmd = shlex.split(command)
+        result = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+        out, err = result.communicate()
+        print(out)
+
+        
+@bp.route("/export-mongo", methods = ["GET", "POST"])
+@login_required
+def export_mongo():
+    # Check admin status
+    if not current_user.is_superuser:
+        return abort(403)
+    
+    # Exportovat databázi
     if request.method == "POST":
-        redirect(url_for("admin.user_detail", _id=_id))
-    render_template("admin/user_detail.html", user=user, books_now=books_now, books_past=books_past)
+        # mongodump
+        uri = MONGO_URI
+        export = MongoExport(MONGO_URI)
+        pth = os.path.join(os.getcwd(), datetime.now().strftime('%d-%m-%Y_%H:%M:%S') + "/")
+        cmd = export.get_command(pth)
+        export.execute(cmd)
+        # zip folder
+        zip_path = pth + "backup.zip"
+        shutil.make_archive(os.path.splitext(zip_path)[0], 'zip', pth)
+        # send to user
+        return send_file(zip_path)
+
+        # Delete folder and its contents
+        shutil.rmtree(pth)
+        
+    return render_template("admin/export.html")
+
+
+
+
+@bp.route("/import-mongo", methods = ["GET", "POST"])
+@login_required
+def import_mongo():
+    # Check admin status
+    if not current_user.is_superuser:
+        return abort(403)
+    return
+    
+    
+
+    
     

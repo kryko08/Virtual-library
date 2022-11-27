@@ -13,13 +13,22 @@
                 <ul class="list-unstyled">
                     <li><i class="fa fa-check text-success"></i>Počet stran: <strong>{{book["number_of_pages"]}}</strong></li>
                     <li><i class="fa fa-check text-success"></i>Rok vydání: <strong>{{book["year_published"].year}}</strong></li>
-                    <li><i class="fa fa-check text-success"></i>Počet volných licencí: <strong>{{book["licences_available"]}}/{{book["number_of_licences"]}}</strong></li>
                 </ul>
                 <form method="POST">
                     {% if has_currently_borrowed %}
+                    <p>Knihu máte momentálně vyůjčenou, vrátíte ji kliknutím na tlačítko dole.</p> 
                     <button type="submit" class="btn btn-primary" value="return_book" name="action">Vrátit knihu</button>
                     {% else %}
-                    <button type="submit" class="btn btn-primary" value="borrow_book" name="action">Vypůjčit knihu</button>
+                        {% if allowed_books %}
+                            {% if free_copies %}
+                                <p>Knihu je momentálně možné si vypůjčit kliknutím na tlačítko dole:</p>
+                                <button type="submit" class="btn btn-primary" value="borrow_book" name="action">Vypůjčit knihu</button>
+                            {% else %}
+                            <p> Momentálně se v knihovně bohužel nenacházejí žádné volné kopie </p>
+                            {% endif %}
+                        {% else %}
+                        <p>Momentálně máte vypůjčený maximální počet knih. Před půjčením další knihy musíte některou vrátit</p>
+                        {% endif %}
                     {% endif %}
                 </form>
             </div>

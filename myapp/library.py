@@ -15,7 +15,7 @@ from .auth import User
 
 from flask_login import login_required, current_user, logout_user
 
-import datetime
+from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 
 import pymongo
@@ -62,6 +62,27 @@ class Book():
             query,
             update
         )
+    
+    @staticmethod
+    def get_user_books(user_id):
+        currently_borrowed = list(mongo.db.borrowings.find(
+        {
+            "user_id": user_id,
+            "is_active": True
+        }
+        ).sort("borrowed_from", pymongo.DESCENDING))
+
+        currently_borrowed = None if len(currently_borrowed)==0 else currently_borrowed
+
+        previously_borrowed = list(mongo.db.borrowings.find(
+        {
+            "user_id": user_id,
+            "is_active": False
+        }
+        ).sort("borrowed_from", pymongo.ASCENDING))
+        previously_borrowed = None if len(previously_borrowed)==0 else previously_borrowed
+
+        return currently_borrowed, previously_borrowed
 
 
 @bp.route("/book-list", methods = ["GET", "POST"])
@@ -92,11 +113,10 @@ def book_list():
                 books = mongo.db.books.find(query).sort(f"{order}", pymongo.ASCENDING)
         else:
             books = mongo.db.books.find(query)
-        
+
         return render_template("app/book_list.html", form=form, books=books)
     books = mongo.db.books.find({})
     return render_template("app/book_list.html", form=form, books=books)
-
 
 
 @bp.route("/<string:_id>/detail", methods = ["GET", "POST"])
@@ -105,12 +125,14 @@ def book_detail(_id):
     book = mongo.db.books.find_one({"_id": ObjectId(_id)})
     user_id = current_user._id
 
-    #borrow_check = mongo.db.users.find_one({"_id": user_id, "books": { "$elemMatch": { "book_id": _id, "to": { "$exists": False } } } })
-    borrow_check = mongo.db.borrowings.find_one({"book_id": _id, "user_id": user_id})
+    borrow_check = mongo.db.borrowings.find_one({"book": _id, "user_id": user_id, "is_active": True})
     has_currently_borrowed = False if borrow_check is None else True
 
-    num_currently_borrowed = mongo.db.borrowings.count_documents({"book_id": _id, "is_active": True})
-    free_copies = True if num_currently_borrowed <= book["number_of_licences"] else False
+    num_currently_borrowed = mongo.db.borrowings.count_documents({"book": _id, "is_active": True})
+    free_copies = True if num_currently_borrowed < book["number_of_licences"] else False
+
+    num_user_borrowings = mongo.db.borrowings.count_documents({"user_id": user_id, "is_active": True})
+    allowed_books = True if num_user_borrowings < 6 else False
   
     if request.method == "POST":
 
@@ -120,15 +142,16 @@ def book_detail(_id):
 
             # Create new borrowings document
             borrowing = {
-                "book_id": _id,
+                "book": _id,
                 "user_id": user_id,
                 "is_active": True,
-                "borrowed_from": datetime.now()
+                "borrowed_from": datetime.now(),
+                "book_title": book["book_title"]
             }
             mongo.db.borrowings.insert_one(borrowing)
 
             # Add the book to the user history <----- Note
-
+            flash(f"Kniha {book['book_title']} vypůjčena")
             return redirect(url_for("library.book_list"))
         
         elif request.form["action"] == "return_book":
@@ -137,40 +160,28 @@ def book_detail(_id):
             # Update book record
             mongo.db.borrowings.update_one(
                 {
-                    "book_id": _id, 
+                    "book": _id, 
                     "user_id": user_id,
                     "is_active": True  # User can borrow same book several times
                 },
                 {
-                    "$set": {"is_active": True, "borrowed_to": datetime.now()}
+                    "$set": {"is_active": False, "borrowed_to": datetime.now()}
                 }
             )
-
-        return redirect(url_for("library.book_list"))
+            flash(f"Kniha {book['book_title']} vrácena")
+            return redirect(url_for("library.book_list"))
     # method GET
-    return render_template("app/book_detail.html", book=book, has_currently_borrowed=has_currently_borrowed, free_copies=free_copies)
+    return render_template("app/book_detail.html", book=book, has_currently_borrowed=has_currently_borrowed, free_copies=free_copies, allowed_books=allowed_books)
 
 
-@bp.route("/my-profile", methods = ["GET", "POST"])
+@bp.route("/edit-my-profile", methods = ["GET", "POST"])
 @login_required
-def user_books():
+def edit_my_profile():
     # Get all books related to this user
     user_id = current_user._id 
     user = User.from_id(user_id)
     original_values = user.to_json()
 
-    currently_borrowed = mongo.db.borrowings.find(
-        {
-            "user_id": user_id,
-            "is_active": True
-        }
-        )
-    previously_borrowed = mongo.db.borrowings.find(
-        {
-            "user_id": user_id,
-            "is_active": False
-        }
-    )
     # Prepopulate form
     form = UserVerificationForm(obj=user)
 
@@ -179,7 +190,9 @@ def user_books():
         form.populate_obj(user)
 
         new_values = user.to_json()
-        new_values["is_verified"] = False
+        # After user details edit, user must await verification, except for supersuer
+        if not user.is_superuser:
+            new_values["is_verified"] = False
 
         updated_fields = User.changed_fields(original_values, new_values)
         user.update_document(updated_fields)
@@ -190,4 +203,39 @@ def user_books():
 
         return redirect(url_for('library.book_list'))
 
-    return render_template("app/my_account.html", currently_borrowed=currently_borrowed, previously_borrowed=previously_borrowed, form=form)
+    return render_template("app/edit_my_account.html", form=form)
+
+@bp.route("/my-profile", methods = ["GET", "POST"])
+@login_required
+def my_detail():
+
+    # Get current user 
+    _id = current_user._id
+    
+    # Books
+    books_now, books_past = Book.get_user_books(_id)
+    
+    if request.method == "POST":
+        book_to_return_id = request.form["action"]
+        # Update borrowing
+        mongo.db.borrowings.update_one(
+            {
+                "user_id": _id,
+                "book_id": book_to_return_id,
+                "is_active": True
+            },
+            {"$set": 
+                {
+                    "is_active": False,
+                    "borrowed_to": datetime.now()
+                }
+            }
+
+        )
+        flash(f"Kniha vrácena")
+        # Get updated data
+        books_now, books_past = Book.get_user_books(_id)
+        return redirect(url_for("library.my_detail", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta))
+
+    return render_template("app/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
+    

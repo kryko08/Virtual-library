@@ -96,9 +96,9 @@ class BookFiltrationForm(FlaskForm):
 class UserVerificationForm(FlaskForm):
     first_name = StringField("Jméno", validators=[DataRequired(), Length(min= 2, max=50)])
     second_name = StringField("Příjmení", validators=[DataRequired(), Length(min = 2, max=50)])
-    username = StringField("uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25), UsernameCheck()])
+    username = StringField("uživatelské jméno", validators=[DataRequired(), Length(min = 5, max=25)])
 
-    birth_number = StringField("rodné číslo", validators=[DataRequired(), Length(max=15), BirthNumberCheck()])
+    birth_number = StringField("rodné číslo", validators=[DataRequired(), Length(max=15)])
     address = StringField("adresa", validators=[DataRequired(), Length(max=50)])  
 
 

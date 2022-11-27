@@ -145,21 +145,24 @@ def login():
 
         # Find user with this username
         user = User.from_username(post_username)
-        password = user.password_hash
+        if type(user) is None:
+            flash("Uživatelské jméno není správné")
+        else:
+            password = user.password_hash
 
-        # Check password
-        if check_password_hash(password, post_password):
-            if not user.is_verified:
-                return redirect(url_for('auth.sign_up_successful'))
+            # Check password
+            if check_password_hash(password, post_password):
+                if not user.is_verified:
+                    return redirect(url_for('auth.sign_up_successful'))
 
-            flash("Přihlášení je úspěšné")
-            # Log user in
-            login_user(user)
+                flash("Přihlášení je úspěšné")
+                # Log user in
+                login_user(user)
 
-            # Redirect to index
-            return redirect(url_for('library.book_list'))
+                # Redirect to index
+                return redirect(url_for('library.book_list'))
 
-        flash("Heslo nebo přihlašovací jméno není správné")
+            flash("Heslo není správné")
     return render_template("auth/login.html", form = form)
 
 
