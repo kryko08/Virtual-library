@@ -19,6 +19,9 @@
             <li class="nav-item">
               <a class="nav-link active" href="{{url_for('admin.export_mongo')}}">Exportovat databázi</a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="{{url_for('admin.import_mongo')}}">Importovat databázi</a>
+            </li>
           {% else %}
             <li class="nav-item">
               <a class="nav-link active" href="{{url_for('library.book_list')}}">Katalog</a>
