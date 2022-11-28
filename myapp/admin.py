@@ -10,7 +10,7 @@ from flask_login import login_required, current_user
 
 from .auth import User
 from .library import Book
-from .forms import UserVerificationForm, BookCreationForm, BookEditForm, UserFiltrationForm
+from .forms import UserVerificationForm, BookCreationForm, BookEditForm, UserFiltrationForm, DatabaseImportForm
 
 from datetime import datetime, timedelta
 
@@ -25,6 +25,10 @@ from .configmodule import MONGO_URI
 
 import os
 import shutil
+import zipfile
+
+import re
+from mmap import ACCESS_READ, mmap
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
@@ -242,7 +246,8 @@ def edit_book(_id):
     return render_template('admin/edit_book.html', form = form, currently_borrowed_by=currently_borrowed_by)
 
 
-class MongoExport():
+# Database import and export 
+class MongoExport2():
 
     def __init__(self, uri):
         self.uri = uri
@@ -255,7 +260,22 @@ class MongoExport():
         cmd = shlex.split(command)
         result = subprocess.Popen(cmd, stdout=subprocess.PIPE)
         out, err = result.communicate()
-        print(out)
+
+
+class MongoExport():
+
+    def __init__(self, uri):
+        self.uri = uri
+
+    def get_command(self, collection):
+        command = f"mongodump --uri {self.uri} --collection {collection} --archive"
+        return command
+    
+    def execute(self, command):
+        cmd = shlex.split(command)
+        result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = result.communicate()
+        return out, err
 
         
 @bp.route("/export-mongo", methods = ["GET", "POST"])
@@ -264,27 +284,52 @@ def export_mongo():
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
-    
-    # Exportovat databázi
-    if request.method == "POST":
-        # mongodump
-        uri = MONGO_URI
-        export = MongoExport(MONGO_URI)
-        pth = os.path.join(os.getcwd(), datetime.now().strftime('%d-%m-%Y_%H:%M:%S') + "/")
-        cmd = export.get_command(pth)
-        export.execute(cmd)
-        # zip folder
-        zip_path = pth + "backup.zip"
-        shutil.make_archive(os.path.splitext(zip_path)[0], 'zip', pth)
-        # send to user
-        return send_file(zip_path)
 
-        # Delete folder and its contents
-        shutil.rmtree(pth)
+    export = MongoExport(MONGO_URI)
+    if request.method == "POST":
+        file_path = os.path.join(os.getcwd(), "export.netstring")
+        collections = ["test_collection", "borrowings", "books", "users"]
+
+        # Get blocks 
+        blocks = []
+        for collection_name in collections:
+            print(collection_name)
+            cmd = export.get_command(collection_name)
+            stream, error = export.execute(cmd)
+            blocks.append(stream)
+        
+        # Save to .txt file
+        with open(file_path, 'wb') as file:
+            for blob in blocks:
+                # [len]":"[string]","
+                file.write(str(len(blob)).encode())
+                file.write(b":")
+                file.write(blob)
+                file.write(b",")
+                
+        return send_file(file_path, as_attachment=True)
+                
         
     return render_template("admin/export.html")
 
+class MongoImport():
 
+    def __init__(self, uri):
+        self.uri = uri
+    
+    def get_command(self, collection):
+        # collection_with_ext = os.path.split(collection_from_bson)[-1]
+        # collection = os.path.splitext(collection_with_ext)[0]
+        command = f"mongorestore --uri {self.uri} --collection {collection} --archive --drop"
+        return command
+
+    def execute(self, command, iostream):
+        cmd = shlex.split(command)
+        result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+        out, err = result.communicate(input=iostream)
+        print("OUT", out)
+        print("ERROR", err)
+        print("\n")
 
 
 @bp.route("/import-mongo", methods = ["GET", "POST"])
@@ -293,8 +338,32 @@ def import_mongo():
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
-    return
     
+    form = DatabaseImportForm()
+
+    if request.method == "POST":
+        # Handle file
+        file = request.files["import_file"]
+        file_path = os.path.join(os.getcwd(), "export.netstring")
+        file.save(file_path)
+
+        blocks = []
+        match_size = re.compile(br'(\d+):').match
+        with open(file_path, 'rb') as file, mmap(file.fileno(), 0, access=ACCESS_READ) as mm:
+            position = 0
+            for m in iter(lambda: match_size(mm, position), None):
+                i, size = m.end(), int(m.group(1))
+                blocks.append(mm[i:i + size])
+                position = i + size + 1 # shift to the next netstring
+
+        # import obj
+        import_mongo = MongoImport(MONGO_URI)
+        collections = ["test_collection", "borrowings", "books", "users"]
+        for (blob, collection) in zip(blocks, collections):
+            cmd = import_mongo.get_command(collection)
+            import_mongo.execute(cmd, blob)
+            
+    return render_template("admin/import.html", form=form)
     
 
     
