@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="shadow p-3 mb-5 bg-body rounded">
+	<form method="POST" enctype="multipart/form-data">
+        {{ form.csrf_token }}
+		{{ form.hidden_tag() }}
+
+		
+
+		{{ form.import_file.label(class="form-label") }}
+
+		{{ form.import_file(class="form-control") }}
+		<br/>
+
+		<input type="submit" value="Registrovat" class="btn btn-secondary">
+
+
+	</form>
+</div>
+
+
+
+{% endblock  %}
