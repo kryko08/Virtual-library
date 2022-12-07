@@ -18,7 +18,8 @@ from .forms import (
 
 from .mongodb import mongo, login_manager
 
-import uuid
+from bson.objectid import ObjectId
+import json
 
 bp = Blueprint('auth', __name__, url_prefix='/auth')
 
@@ -28,7 +29,7 @@ login_manager.login_view = "auth.login"
 # User class for session 
 class User(UserMixin):
     
-    def __init__(self, first_name, second_name, username, birth_number, address, password_hash, is_verified = None, banned = False, is_superuser = None, _id=None):
+    def __init__(self, first_name, second_name, username, birth_number, address, password_hash, is_verified = None, banned = False, is_superuser = None, _id=None, books_borrowed=0):
         self.first_name = first_name
         self.second_name = second_name
         self.username = username
@@ -42,7 +43,9 @@ class User(UserMixin):
         self.banned = False if banned is None else banned
         self.is_superuser = False if is_superuser is None else is_superuser
 
-        self._id = uuid.uuid4().hex if _id is None else _id
+        self._id = ObjectId() if _id is None else _id
+        self.books_borrowed = 0 if books_borrowed is None else books_borrowed
+
 
 
     def is_authenticated(self):
@@ -55,10 +58,11 @@ class User(UserMixin):
         return False 
 
     def get_id(self):
-        return self._id
+        return str(self._id)
 
     @classmethod
     def from_id(cls, _id):
+        _id = ObjectId(_id)
         data = mongo.db.users.find_one({"_id": _id})
         if data is not None:
             return cls(**data)
@@ -84,7 +88,8 @@ class User(UserMixin):
             "banned": self.banned, 
             "is_superuser": self.is_superuser,
 
-            "_id": self._id
+            "_id": self._id,
+            "books_borrowed": self.books_borrowed
         } 
 
     def save_to_mongo(self):
@@ -105,6 +110,9 @@ class User(UserMixin):
             if new_values[key] != old_values[key]:
                 to_update[key] = new_values[key]
         return to_update
+
+    def __str__(self):
+        return f"Class User, {self._id}, {self.username}"
 
     
 @bp.route("/sign-up", methods=["GET", "POST"])

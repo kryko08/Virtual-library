@@ -43,9 +43,11 @@
     </div>
 </div>
 <p> Chybné údaje? Provést změny můžete <a href="{{url_for("library.edit_my_profile")}}">zde<a/>.</p>
+<p> Uživatel má momentálně {{user.books_borrowed}} výpujček</p>
 <br>
 
 <h2> Výpujčky </h2>
+
 <div class="pb-4">
 {% for message in get_flashed_messages() %}
 	

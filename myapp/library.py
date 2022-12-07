@@ -24,17 +24,17 @@ import pymongo
 bp = Blueprint('library', __name__, url_prefix='')
 
 class Book():
-    def __init__(self, book_title, author, number_of_pages, image_data, year_published, number_of_licenses, _id=None):
+    def __init__(self, book_title, author, number_of_pages, image_data, year_published, number_of_licences, licences_available, _id=None):
         self.book_title = book_title
         self.author = author
         self.number_of_pages = number_of_pages
         self.image_data = image_data
         self.year_published = datetime.datetime(year_published, 1, 1)
-        self.number_of_licenses = number_of_licenses
-        self.licences_available = number_of_licenses
+        self.number_of_licences = number_of_licences
+        self.licences_available = licences_available
 
         self._id = ObjectId() if _id is None else _id
-
+        
     def to_json(self):
         return {
             "book_title": self.book_title,
@@ -42,13 +42,14 @@ class Book():
             "number_of_pages": self.number_of_pages,
             "image_data": self.image_data,
             "year_published": self.year_published,
-            "number_of_licences": self.number_of_licenses,
-            "licences_available": self.licences_available
+            "number_of_licences": self.number_of_licences,
+            "licences_available": self.licences_available, 
+            "_id": self._id,
         }
 
     @classmethod
     def from_id(cls, _id):
-        data = mongo.db.book.find_one({"_id": ObjectId(_id)})
+        data = mongo.db.books.find_one({"_id": ObjectId(_id)})
         if data is not None:
             return cls(**data)
 
@@ -67,7 +68,7 @@ class Book():
     def get_user_books(user_id):
         currently_borrowed = list(mongo.db.borrowings.find(
         {
-            "user_id": user_id,
+            "user_id": ObjectId(user_id),
             "is_active": True
         }
         ).sort("borrowed_from", pymongo.DESCENDING))
@@ -76,7 +77,7 @@ class Book():
 
         previously_borrowed = list(mongo.db.borrowings.find(
         {
-            "user_id": user_id,
+            "user_id": ObjectId(user_id),
             "is_active": False
         }
         ).sort("borrowed_from", pymongo.ASCENDING))
@@ -123,16 +124,14 @@ def book_list():
 @login_required
 def book_detail(_id):
     book = mongo.db.books.find_one({"_id": ObjectId(_id)})
-    user_id = current_user._id
+    user = mongo.db.users.find_one({"_id": ObjectId(current_user._id)})
 
-    borrow_check = mongo.db.borrowings.find_one({"book": _id, "user_id": user_id, "is_active": True})
+    borrow_check = mongo.db.borrowings.find_one({"book_id": ObjectId(_id), "user_id": ObjectId(current_user._id), "is_active": True})
     has_currently_borrowed = False if borrow_check is None else True
 
-    num_currently_borrowed = mongo.db.borrowings.count_documents({"book": _id, "is_active": True})
-    free_copies = True if num_currently_borrowed < book["number_of_licences"] else False
+    free_copies = True if book["licences_available"] > 0 else False
 
-    num_user_borrowings = mongo.db.borrowings.count_documents({"user_id": user_id, "is_active": True})
-    allowed_books = True if num_user_borrowings < 6 else False
+    allowed_books = True if user["books_borrowed"] < 6 else False
   
     if request.method == "POST":
 
@@ -142,8 +141,8 @@ def book_detail(_id):
 
             # Create new borrowings document
             borrowing = {
-                "book": _id,
-                "user_id": user_id,
+                "book_id": ObjectId(_id),
+                "user_id": ObjectId(current_user._id),
                 "is_active": True,
                 "borrowed_from": datetime.now(),
                 "book_title": book["book_title"]
@@ -160,8 +159,8 @@ def book_detail(_id):
             # Update book record
             mongo.db.borrowings.update_one(
                 {
-                    "book": _id, 
-                    "user_id": user_id,
+                    "book_id": ObjectId(_id), 
+                    "user_id": ObjectId(current_user._id),
                     "is_active": True  # User can borrow same book several times
                 },
                 {
@@ -218,10 +217,11 @@ def my_detail():
     if request.method == "POST":
         book_to_return_id = request.form["action"]
         # Update borrowing
+        print("Začátek", book_to_return_id, "KONEC")
         mongo.db.borrowings.update_one(
             {
-                "user_id": _id,
-                "book_id": book_to_return_id,
+                "user_id": ObjectId(_id),
+                "book_id": ObjectId(book_to_return_id),
                 "is_active": True
             },
             {"$set": 
@@ -235,7 +235,7 @@ def my_detail():
         flash(f"Kniha vrácena")
         # Get updated data
         books_now, books_past = Book.get_user_books(_id)
-        return redirect(url_for("library.my_detail", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta))
+        return redirect(url_for("library.book_list"))
 
     return render_template("app/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
     

@@ -7,7 +7,7 @@ from . import auth
 from . import library
 from . import admin
 
-from .mongodb import login_manager, mongo
+from .mongodb import login_manager, mongo, MyJSONEncoder
 
 
 def create_app(config_object = "myapp.configmodule"):
@@ -28,5 +28,7 @@ def create_app(config_object = "myapp.configmodule"):
     app.register_blueprint(auth.bp)
     app.register_blueprint(library.bp)
     app.register_blueprint(admin.bp)
+
+    app.json_encoder = MyJSONEncoder
 
     return app

@@ -134,3 +134,5 @@ class UserFiltrationForm(FlaskForm):
     birth_number = StringField("Rodné číslo", validators=[Optional(), Length(min=3)])
     order_by = SelectField("Řadit dle", choices=[("", "Bez řazení"), ("first_name", "Křestního jména"), ("second_name", "Příjmení"), ("birth_number", "Rodného čísla"), ("address", "Adresy")])
     
+class DatabaseImportForm(FlaskForm):
+    import_file = FileField("Zip soubor k importu", validators=[DataRequired()])

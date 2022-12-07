@@ -24,8 +24,6 @@ import shlex
 from .configmodule import MONGO_URI
 
 import os
-import shutil
-import zipfile
 
 import re
 from mmap import ACCESS_READ, mmap
@@ -173,8 +171,6 @@ def user_detail(_id):
     return render_template("admin/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
  
    
-    
-
 # Book Manipulation Views 
 @bp.route("/add-new-book", methods = ["GET", "POST"])
 @login_required
@@ -236,7 +232,6 @@ def edit_book(_id):
         form.populate_obj(book)
          
         new_values = book.to_json()
-        new_values["is_verified"] = True
 
         updated_fields = User.changed_fields(original_values, new_values)
         book.update_document(updated_fields)
@@ -244,23 +239,6 @@ def edit_book(_id):
         return redirect(url_for('library.book_list'))
 
     return render_template('admin/edit_book.html', form = form, currently_borrowed_by=currently_borrowed_by)
-
-
-# Database import and export 
-class MongoExport2():
-
-    def __init__(self, uri):
-        self.uri = uri
-
-    def get_command(self, pth):
-        command = f"mongodump --uri {self.uri} --out {pth}"
-        return command
-    
-    def execute(self, command):
-        cmd = shlex.split(command)
-        result = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-        out, err = result.communicate()
-
 
 class MongoExport():
 
@@ -362,7 +340,9 @@ def import_mongo():
         for (blob, collection) in zip(blocks, collections):
             cmd = import_mongo.get_command(collection)
             import_mongo.execute(cmd, blob)
-            
+
+    # Remove file
+    # os.remove(file_path) 
     return render_template("admin/import.html", form=form)
     
 
