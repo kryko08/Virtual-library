@@ -104,34 +104,45 @@ def user_list():
     form = UserFiltrationForm()
     if request.method == "POST" and form.validate():
         # Get data from form
-        query = {}
+        pipeline = []
+        search = {
+            "$search": {
+                "index": "UserIndex",
+                "compound": {
+                    "filter": []
+                }
+            }
+        }
+        # Check for text input
+        for field_name, value in list(form.data.items())[:-2]:
+            if value != "":
+                regex_pattern = f".*{value}.*"
+                regex_params = {
+                    "path": field_name,
+                    "query": regex_pattern,
+                    "allowAnalyzedField": True
+                }
+                regex_dict = {}
+                regex_dict["regex"] = regex_params
+                search["$search"]["compound"]["filter"].append(regex_dict)
 
-        first_name = form.first_name.data
-        if first_name is not None:
-            query["first_name"] = {"$regex": f"{first_name}", "$options": "i"}
+        pipeline.append(search) if len(search["$search"]["compound"]["filter"]) != 0 else 0 # Append nothing
 
-        second_name = form.second_name.data
-        if second_name is not None:
-            query["second_name"] = {"$regex": f"{second_name}", "$options": "i"}
-
-        address = form.address.data
-        if address is not None:
-            query["address"] = {"$regex": f"{address}", "$options": "i"}
-
-        birth_number = form.birth_number.data
-        if birth_number is not None:
-            query["birth_number"] = {"$regex": f"{birth_number}", "$options": "i"}
-
-        order = form.order_by.data 
+        # Check for sort 
+        order = form.order_by.data
         if order:
-            users = mongo.db.users.find(query).sort(f"{order}", pymongo.ASCENDING)
-        else:
-            users = mongo.db.users.find(query)
+            sort = {
+                "$sort": {
+                    order: -1
+                }
+            }
+            pipeline.append(sort)
+        
+        users = mongo.db.users.aggregate(pipeline) if len(pipeline) != 0 else mongo.db.users.find({})
         return render_template("admin/user_list.html", form=form, users=users)
-
+    
     users = mongo.db.users.find({})
     return render_template("admin/user_list.html", form=form, users=users)
-
 
 # User detail
 @bp.route("/users/<string:_id>/detail", methods = ["GET", "POST"])
@@ -211,17 +222,7 @@ def edit_book(_id):
     if not current_user.is_superuser:
         return abort(403)
 
-    # Book can not be edited if the book si currently borrowed
-    currently_borrowed_by = mongo.db.borrowings.find(
-        {
-        "book_id": _id,
-        "is_active": True
-        },
-        {
-        "user_id": 1,
-        "book_id": 0 
-        }
-    )
+    
 
     book = Book.from_id(_id)
     original_values = book.to_json()

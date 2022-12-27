@@ -20,6 +20,8 @@ from bson.objectid import ObjectId
 
 import pymongo
 
+from time import time
+
 
 bp = Blueprint('library', __name__, url_prefix='')
 
@@ -91,31 +93,43 @@ def book_list():
     form = BookFiltrationForm()
     if request.method == "POST" and form.validate():
         # Get data from form
-        query = {}
+        pipeline = []
+        search = {
+            "$search": {
+                "index": "BookIndex",
+                "compound": {
+                    "filter": []
+                }
+            }
+        }
+        # Check for text input
+        for field_name, value in list(form.data.items())[:-2]:
+            if value != "":
+                regex_pattern = f".*{value}.*"
+                regex_params = {
+                    "path": field_name,
+                    "query": regex_pattern,
+                    "allowAnalyzedField": True
+                }
+                regex_dict = {}
+                regex_dict["regex"] = regex_params
+                search["$search"]["compound"]["filter"].append(regex_dict)
 
-        author_str = form.author_name.data
-        if author_str is not None:
-            query["author"] = {"$regex": f"{author_str}", "$options": "i"}
+        pipeline.append(search) if len(search["$search"]["compound"]["filter"]) != 0 else 0 # Append nothing
 
-        book_str = form.book_name.data
-        if book_str is not None:
-            query["book_title"] = {"$regex": f"{book_str}", "$options": "i"}
-
-        year = form.year_published.data
-        if year is not None:
-            year = datetime.datetime(year, 1, 1)
-            query["year_published"] = year
-
-        order = form.order_by.data # Switch Case :(
+        # Check for sort 
+        order = form.order_by.data
         if order:
-            if order == "author":
-                books = mongo.db.books.find(query).sort(str(order.split(" ")[-1]), pymongo.ASCENDING)
-            else:
-                books = mongo.db.books.find(query).sort(f"{order}", pymongo.ASCENDING)
-        else:
-            books = mongo.db.books.find(query)
+            sort = {
+                "$sort": {
+                    order: -1
+                }
+            }
+            pipeline.append(sort)
 
+        books = mongo.db.books.aggregate(pipeline) if len(pipeline) != 0 else mongo.db.books.find({})
         return render_template("app/book_list.html", form=form, books=books)
+    
     books = mongo.db.books.find({})
     return render_template("app/book_list.html", form=form, books=books)
 

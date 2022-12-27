@@ -85,9 +85,9 @@ class LoginForm(FlaskForm):
 
 
 class BookFiltrationForm(FlaskForm):
-    author_name = StringField("Jméno autora", validators=[Optional(), Length(min=3)])
-    book_name = StringField("Název knihy", validators=[Optional(), Length(min=3)])
-    year_published = IntegerField("Rok vydání", validators=[Optional()])
+    author = StringField("Jméno autora", validators=[Optional(), Length(min=3)])
+    book_title = StringField("Název knihy", validators=[Optional(), Length(min=3)])
+    year_published = StringField("Rok vydání", validators=[Optional(), Length(min=3)])
     order_by = SelectField("Řadit dle", choices=[("", "Bez řazení"), ("author", "Příjmení autora"), ("book_title", "Názvu knihy"), ("year_published", "Roku vydání")])
 
 

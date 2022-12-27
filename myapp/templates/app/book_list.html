@@ -9,17 +9,17 @@
             {{ form.csfr_token }}
             {{ form.hidden_tag() }}
     
-            {{ form.author_name.label(class="form-label") }}
+            {{ form.author.label(class="form-label") }}
     
-            {{ form.author_name(class="form-control") }}
-                {% for error in form.author_name.errors %}
+            {{ form.author(class="form-control") }}
+                {% for error in form.author.errors %}
                     <span class="text-danger">{{ error }}</span>
                 {% endfor %}
             <br/>
             
-            {{ form.book_name.label(class="form-label") }}
+            {{ form.book_title.label(class="form-label") }}
     
-            {{ form.book_name(class="form-control") }}
+            {{ form.book_title(class="form-control") }}
             <br/>
 
             {{ form.year_published.label(class="form-label") }}

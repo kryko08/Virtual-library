@@ -15,7 +15,7 @@ def add_books(csv_path, book_collection):
         author = row["author"]
         book_title = row["title"]
         number_of_pages = row["pages"]
-        year_published = random.randint(1500, 2022)
+        year_published = str(random.randint(1500, 2022))
         number_of_licences = random.randint(1, 5)
 
         book_collection.insert_one(
