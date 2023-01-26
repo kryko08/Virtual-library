@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+{% for message in get_flashed_messages() %}
+
+	<div class="alert alert-warning alert-dismissible fade show" role="alert">
+	  {{ message }}
+	  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+	</div>
+
+{% endfor %}
+
+<div class="shadow p-3 mb-5 bg-body rounded">
+	<form method="POST" enctype="multipart/form-data">
+        {{ form.csrf_token }}
+		{{ form.hidden_tag() }}
+
+		{{ form.book_title.label(class="form-label") }}
+
+		{{ form.book_title(class="form-control") }}
+		<br/>
+
+        {{ form.author.label(class="form-label") }}
+
+		{{ form.author(class="form-control") }}
+		<br/>
+
+		{{ form.number_of_pages.label(class="form-label") }}
+
+		{{ form.number_of_pages(class="form-control") }}
+		<br/>
+
+		{{ form.year_published.label(class="form-label") }}
+
+		{{ form.year_published(class="form-control") }}
+		<br/>
+
+		{{ form.number_of_licences.label(class="form-label") }}
+
+		{{ form.number_of_licences(class="form-control") }}
+		<br/>
+
+		<br/>
+        {% if edit_allowed %}
+		    <input type="submit" value="Upravit záznam" class="btn btn-primary">
+        {% else %}
+            <input type="submit" value="Upravit záznam" class="btn btn-primary disabled">
+            <p>Nelze upravit knihu, která je momentálně vypůjčená</p>
+        {% endif %}
+
+
+
+	</form>
+</div>
+
+
+
+{% endblock  %}

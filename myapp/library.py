@@ -7,7 +7,7 @@ from flask import (
     url_for, 
     flash
 )
-import datetime
+from datetime import datetime
 
 from .mongodb import mongo
 from .forms import UserVerificationForm, BookFiltrationForm
@@ -15,15 +15,19 @@ from .auth import User
 
 from flask_login import login_required, current_user, logout_user
 
-from datetime import datetime, timedelta
+from datetime import timedelta
+
 from bson.objectid import ObjectId
 
 import pymongo
 
-from time import time
+from .utils import get_pipeline
+
+from base64 import b64encode
 
 
 bp = Blueprint('library', __name__, url_prefix='')
+
 
 class Book():
     def __init__(self, book_title, author, number_of_pages, image_data, year_published, number_of_licences, licences_available, _id=None):
@@ -31,7 +35,7 @@ class Book():
         self.author = author
         self.number_of_pages = number_of_pages
         self.image_data = image_data
-        self.year_published = datetime.datetime(year_published, 1, 1)
+        self.year_published = year_published
         self.number_of_licences = number_of_licences
         self.licences_available = licences_available
 
@@ -93,7 +97,6 @@ def book_list():
     form = BookFiltrationForm()
     if request.method == "POST" and form.validate():
         # Get data from form
-        pipeline = []
         search = {
             "$search": {
                 "index": "BookIndex",
@@ -102,31 +105,7 @@ def book_list():
                 }
             }
         }
-        # Check for text input
-        for field_name, value in list(form.data.items())[:-2]:
-            if value != "":
-                regex_pattern = f".*{value}.*"
-                regex_params = {
-                    "path": field_name,
-                    "query": regex_pattern,
-                    "allowAnalyzedField": True
-                }
-                regex_dict = {}
-                regex_dict["regex"] = regex_params
-                search["$search"]["compound"]["filter"].append(regex_dict)
-
-        pipeline.append(search) if len(search["$search"]["compound"]["filter"]) != 0 else 0 # Append nothing
-
-        # Check for sort 
-        order = form.order_by.data
-        if order:
-            sort = {
-                "$sort": {
-                    order: -1
-                }
-            }
-            pipeline.append(sort)
-
+        pipeline = get_pipeline(form, search)
         books = mongo.db.books.aggregate(pipeline) if len(pipeline) != 0 else mongo.db.books.find({})
         return render_template("app/book_list.html", form=form, books=books)
     
@@ -134,29 +113,35 @@ def book_list():
     return render_template("app/book_list.html", form=form, books=books)
 
 
-@bp.route("/<string:_id>/detail", methods = ["GET", "POST"])
+@bp.route("/<string:_id>/detail", methods=["GET", "POST"])
 @login_required
 def book_detail(_id):
     book = mongo.db.books.find_one({"_id": ObjectId(_id)})
-    user = mongo.db.users.find_one({"_id": ObjectId(current_user._id)})
+    user = current_user
 
     borrow_check = mongo.db.borrowings.find_one({"book_id": ObjectId(_id), "user_id": ObjectId(current_user._id), "is_active": True})
     has_currently_borrowed = False if borrow_check is None else True
 
     free_copies = True if book["licences_available"] > 0 else False
 
-    allowed_books = True if user["books_borrowed"] < 6 else False
-  
+    allowed_books = True if user.books_borrowed < 6 else False
+
+    # 64Base encode image
+    base = b64encode(book["image_data"])
+    encoding = "utf–8"
+    base_string = base.decode(encoding)
+    src_string = "data:image/jpeg; base64," + base_string
+    book["image_data"] = src_string
+
     if request.method == "POST":
 
-        
         if request.form["action"] == "borrow_book":
             # Borrow a book
 
             # Create new borrowings document
             borrowing = {
                 "book_id": ObjectId(_id),
-                "user_id": ObjectId(current_user._id),
+                "user_id": ObjectId(user._id),
                 "is_active": True,
                 "borrowed_from": datetime.now(),
                 "book_title": book["book_title"]
@@ -174,7 +159,7 @@ def book_detail(_id):
             mongo.db.borrowings.update_one(
                 {
                     "book_id": ObjectId(_id), 
-                    "user_id": ObjectId(current_user._id),
+                    "user_id": ObjectId(user._id),
                     "is_active": True  # User can borrow same book several times
                 },
                 {
@@ -184,10 +169,11 @@ def book_detail(_id):
             flash(f"Kniha {book['book_title']} vrácena")
             return redirect(url_for("library.book_list"))
     # method GET
-    return render_template("app/book_detail.html", book=book, has_currently_borrowed=has_currently_borrowed, free_copies=free_copies, allowed_books=allowed_books)
+    return render_template("app/book_detail.html", book=book, has_currently_borrowed=has_currently_borrowed,
+                           free_copies=free_copies, allowed_books=allowed_books)
 
 
-@bp.route("/edit-my-profile", methods = ["GET", "POST"])
+@bp.route("/edit-my-profile", methods=["GET", "POST"])
 @login_required
 def edit_my_profile():
     # Get all books related to this user
@@ -203,7 +189,7 @@ def edit_my_profile():
         form.populate_obj(user)
 
         new_values = user.to_json()
-        # After user details edit, user must await verification, except for supersuer
+        # After user details edit, user must await verification, except for superuser
         if not user.is_superuser:
             new_values["is_verified"] = False
 
@@ -218,6 +204,7 @@ def edit_my_profile():
 
     return render_template("app/edit_my_account.html", form=form)
 
+
 @bp.route("/my-profile", methods = ["GET", "POST"])
 @login_required
 def my_detail():
@@ -231,7 +218,6 @@ def my_detail():
     if request.method == "POST":
         book_to_return_id = request.form["action"]
         # Update borrowing
-        print("Začátek", book_to_return_id, "KONEC")
         mongo.db.borrowings.update_one(
             {
                 "user_id": ObjectId(_id),
@@ -247,9 +233,9 @@ def my_detail():
 
         )
         flash(f"Kniha vrácena")
-        # Get updated data
-        books_now, books_past = Book.get_user_books(_id)
-        return redirect(url_for("library.book_list"))
 
-    return render_template("app/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
+        return redirect(url_for("library.my_detail"))
+
+    return render_template("app/user_detail.html", current_user=current_user,
+                           books_now=books_now, books_past=books_past, d=timedelta)
     

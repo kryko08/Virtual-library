@@ -125,7 +125,11 @@ class BookCreationForm(FlaskForm):
 
 
 class BookEditForm(FlaskForm):
-    pass
+    book_title = StringField("Název knihy", validators=[DataRequired()])
+    author = StringField("Autor knihy", validators=[DataRequired()])
+    number_of_pages = IntegerField("Počet stran", validators=[DataRequired()])
+    year_published = IntegerField("Rok vydání", validators=[DataRequired()])
+    number_of_licences = IntegerField("Počet licencí", validators=[DataRequired()])
 
 class UserFiltrationForm(FlaskForm):
     first_name = StringField("Křestní jméno", validators=[Optional(), Length(min=3)])

@@ -8,6 +8,7 @@ from bson.objectid import ObjectId
 mongo = PyMongo()
 login_manager = LoginManager()
 
+
 class MyJSONEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, ObjectId):

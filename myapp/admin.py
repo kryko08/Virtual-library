@@ -1,22 +1,27 @@
 from flask import (
     Blueprint, flash, g, redirect, render_template, request, session, url_for, abort, send_file
 )
-from functools import wraps
-
+from werkzeug.security import generate_password_hash
 from .mongodb import mongo
-import pymongo
 
 from flask_login import login_required, current_user
 
 from .auth import User
 from .library import Book
-from .forms import UserVerificationForm, BookCreationForm, BookEditForm, UserFiltrationForm, DatabaseImportForm
+from .forms import (UserVerificationForm,
+                    BookCreationForm,
+                    BookEditForm,
+                    UserFiltrationForm,
+                    DatabaseImportForm,
+                    RegistrationForm
+                    )
 
 from datetime import datetime, timedelta
 
 from PIL import Image
 from io import BytesIO
-import base64
+from bson import Binary
+from bson.objectid import ObjectId
 
 import subprocess
 import shlex
@@ -28,11 +33,13 @@ import os
 import re
 from mmap import ACCESS_READ, mmap
 
+from .utils import get_pipeline
+
 bp = Blueprint('admin', __name__, url_prefix='/admin')
 
 
 # User Verification Views
-@bp.route("/verify", methods = ["GET", "POST"])
+@bp.route("/verify", methods=["GET", "POST"])
 @login_required
 def user_verify_list():
     # Check admin status
@@ -40,14 +47,12 @@ def user_verify_list():
         return abort(403)
 
     waiting_list = mongo.db.users.find(
-        {
-            "$and": [{"is_verified": False}, {"banned": False}]
-        }
+        {"is_verified": False, "banned": False}
     )
-    return render_template('admin/new_users.html', waiting_list=waiting_list)
+    return render_template('admin/new_users.html', users=waiting_list)
 
 
-@bp.route("users/verify/<string:_id>", methods = ["GET", "POST"])
+@bp.route("users/verify/<string:_id>", methods=["GET", "POST"])
 @login_required
 def user_verify_detail(_id):
     # Check admin status
@@ -78,33 +83,48 @@ def user_verify_detail(_id):
             flash(f"Uživatel {user.username} zabanován")
             return redirect(url_for('admin.user_verify_list'))
         
-    return render_template('admin/user_verification.html', form = form)
+    return render_template('admin/user_verification.html', form=form)
 
 
-@bp.route("users/verify/<string:_id>/direct", methods = ["GET"])
+@bp.route("users/new-user", methods=["GET", "POST"])
 @login_required
-def verify_account_direct(_id):
+def add_new_user():
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
 
-    user = User.from_id(_id)
+    form = RegistrationForm()
+    if request.method == "POST" and form.validate():
+        # Get data from form
+        first_name = form.first_name.data
+        second_name = form.second_name.data
+        username = form.username.data
 
-    new_values = {}
-    new_values["is_verified"] = True
-    user.update_document(new_values)
-    flash(f"Uživatel {user.username} schválen")
-    return render_template("admin/new_users.html")
+        birth_number = form.birth_number.data
+        address = form.address.data
+
+        password = form.password.data
+        hash_password = generate_password_hash(password)
+
+        # User created by admin is always verified
+        is_verified = True
+
+        # Create new document
+        user = User(first_name, second_name, username, birth_number, address, hash_password, is_verified)
+        user.save_to_mongo()
+
+        # Redirect
+        return redirect(url_for('auth.sign_up_successful'))
+    return render_template('auth/signUp.html', form=form)
 
 
 # User list   
-@bp.route("/users", methods = ["GET", "POST"])
+@bp.route("/users", methods=["GET", "POST"])
 @login_required
 def user_list():
     form = UserFiltrationForm()
     if request.method == "POST" and form.validate():
         # Get data from form
-        pipeline = []
         search = {
             "$search": {
                 "index": "UserIndex",
@@ -113,30 +133,7 @@ def user_list():
                 }
             }
         }
-        # Check for text input
-        for field_name, value in list(form.data.items())[:-2]:
-            if value != "":
-                regex_pattern = f".*{value}.*"
-                regex_params = {
-                    "path": field_name,
-                    "query": regex_pattern,
-                    "allowAnalyzedField": True
-                }
-                regex_dict = {}
-                regex_dict["regex"] = regex_params
-                search["$search"]["compound"]["filter"].append(regex_dict)
-
-        pipeline.append(search) if len(search["$search"]["compound"]["filter"]) != 0 else 0 # Append nothing
-
-        # Check for sort 
-        order = form.order_by.data
-        if order:
-            sort = {
-                "$sort": {
-                    order: -1
-                }
-            }
-            pipeline.append(sort)
+        pipeline = get_pipeline(form, search)
         
         users = mongo.db.users.aggregate(pipeline) if len(pipeline) != 0 else mongo.db.users.find({})
         return render_template("admin/user_list.html", form=form, users=users)
@@ -144,15 +141,17 @@ def user_list():
     users = mongo.db.users.find({})
     return render_template("admin/user_list.html", form=form, users=users)
 
+
 # User detail
-@bp.route("/users/<string:_id>/detail", methods = ["GET", "POST"])
+@bp.route("/users/<string:_id>/detail", methods=["GET", "POST"])
 @login_required
 def user_detail(_id):
+    # TODO nefunguje vrácení knihy
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
     
-    user = mongo.db.users.find_one({"_id": _id})
+    user = User.from_id(_id)
 
     # Books
     books_now, books_past = Book.get_user_books(_id)
@@ -160,13 +159,14 @@ def user_detail(_id):
     if request.method == "POST":
         book_to_return_id = request.form["action"]
         # Update borrowing
+        print()
         mongo.db.borrowings.update_one(
             {
-                "user_id": _id,
-                "book_id": book_to_return_id,
+                "user_id": ObjectId(_id),
+                "book_id": ObjectId(book_to_return_id),
                 "is_active": True
             },
-            {"$set": 
+            {"$set":
                 {
                     "is_active": False,
                     "borrowed_to": datetime.now()
@@ -176,14 +176,13 @@ def user_detail(_id):
         )
         flash(f"Kniha vrácena")
         # Get updated data
-        books_now, books_past = Book.get_user_books(_id)
-        return redirect(url_for("admin.user_detail", user=user, books_now=books_now, books_past=books_past, d=timedelta))
+        return redirect(url_for("admin.user_detail", _id=_id))
 
-    return render_template("admin/user_detail.html", current_user=current_user, books_now=books_now, books_past=books_past, d=timedelta)
+    return render_template("admin/user_detail.html", user=user, books_now=books_now, books_past=books_past, d=timedelta)
  
    
 # Book Manipulation Views 
-@bp.route("/add-new-book", methods = ["GET", "POST"])
+@bp.route("/add-new-book", methods=["GET", "POST"])
 @login_required
 def add_book():
     # Check admin status
@@ -197,34 +196,37 @@ def add_book():
         author = form.author.data
         number_of_pages = form.number_of_pages.data
 
+        # Get image data and save them as BSON Binary
         file = request.files['title_page']
         image = Image.open(file)
         im_bytes = BytesIO()
         image.save(im_bytes, format='PNG')
-        base = base64.b64encode(im_bytes.getvalue())
+        bson_binary = Binary(im_bytes.getvalue())
 
         year_published = form.year_published.data
-        
+
         number_of_licences = form.number_of_licences.data
 
-        book = Book(book_title, author, number_of_pages, base, year_published, number_of_licences)
+        book = Book(book_title, author, number_of_pages, bson_binary, year_published, number_of_licences, number_of_licences)
         book.save_to_mongo()
 
         # Redirect
+        flash(f"{book.book_title} added!")
         return redirect(url_for('library.book_list'))
-    return render_template('admin/add_book.html', form = form)
+    return render_template('admin/add_book.html', form=form)
 
 
-@bp.route("/<string:_id>/edit", methods = ["GET", "POST"])
+@bp.route("/<string:_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_book(_id):
     # Check admin status
     if not current_user.is_superuser:
         return abort(403)
 
-    
-
+    # Can only edit book that is not currently borrowed
     book = Book.from_id(_id)
+    is_editable = True if book.licences_available == book.number_of_licences else False
+
     original_values = book.to_json()
 
     form = BookEditForm(obj=book)
@@ -235,13 +237,15 @@ def edit_book(_id):
         new_values = book.to_json()
 
         updated_fields = User.changed_fields(original_values, new_values)
-        book.update_document(updated_fields)
+        book.update_book(updated_fields)
 
+        flash(f"Book {original_values['book_title']} edited successfully")
         return redirect(url_for('library.book_list'))
 
-    return render_template('admin/edit_book.html', form = form, currently_borrowed_by=currently_borrowed_by)
+    return render_template('admin/edit_book.html', form=form, edit_allowed=is_editable)
 
-class MongoExport():
+
+class MongoExport:
 
     def __init__(self, uri):
         self.uri = uri
@@ -257,7 +261,7 @@ class MongoExport():
         return out, err
 
         
-@bp.route("/export-mongo", methods = ["GET", "POST"])
+@bp.route("/export-mongo", methods=["GET", "POST"])
 @login_required
 def export_mongo():
     # Check admin status
@@ -287,9 +291,9 @@ def export_mongo():
                 file.write(b",")
                 
         return send_file(file_path, as_attachment=True)
-                
-        
+
     return render_template("admin/export.html")
+
 
 class MongoImport():
 
@@ -333,7 +337,7 @@ def import_mongo():
             for m in iter(lambda: match_size(mm, position), None):
                 i, size = m.end(), int(m.group(1))
                 blocks.append(mm[i:i + size])
-                position = i + size + 1 # shift to the next netstring
+                position = i + size + 1  # shift to the next netstring
 
         # import obj
         import_mongo = MongoImport(MONGO_URI)
@@ -345,7 +349,3 @@ def import_mongo():
     # Remove file
     # os.remove(file_path) 
     return render_template("admin/import.html", form=form)
-    
-
-    
-    

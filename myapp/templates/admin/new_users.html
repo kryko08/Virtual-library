@@ -1,28 +1,31 @@
 {% extends 'base.html' %}
 
 {% block content %}
+    {% for message in get_flashed_messages() %}
 
-{% for message in get_flashed_messages() %}
-	
-	<div class="alert alert-warning alert-dismissible fade show" role="alert">
-	  {{ message }}
-	  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-	</div>
-
-	
-{% endfor %}
-
-<ul class="list-group list-group-light">
-    {% for new_user in waiting_list %}
-        <li class="list-group-item d-flex justify-content-between align-items-center">
-            <div>
-                <div class="fw-bold">{{new_user.username}}</div>
-                <div class="text-muted">{{[new_user.first_name, new_user.second_name]|join(' ')}}</div>
-            </div>
-            <a href="{{ url_for("admin.user_verify_detail", _id=new_user._id) }}" class="btn btn-primary">Detail</a>
-            <a href="{{ url_for("admin.verify_account_direct", _id=new_user._id) }}" class="btn btn-success">Schválit účet</a>
-        </li>
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
     {% endfor %}
-</ul>
 
-{% endblock  %}
+
+
+    <div class="row row-cols-1 row-cols-sm-3 row-cols-md-5 g-3">
+      {% for user in users %}
+      <div class="col">
+          <div class="card shadow-sm">
+              <div class="card-body">
+                  <h3> {{user["username"]}} </h3>
+                  <p class="card-text">Jméno: <strong>{{ user["first_name"] }} {{ user["second_name"] }}</strong></br>
+                  Rodné číslo: <strong>{{ user["birth_number"] }}</strong></br>
+                  Bydliště: <strong>{{ user["address"] }}</strong></p>
+                  <div class="d-flex justify-content-between align-items-center">
+                          <a href="{{ url_for("admin.user_verify_detail", _id=user["_id"]) }}" class="btn btn-primary">Detail</a>
+                  </div>
+              </div>
+          </div>
+      </div>
+      {% endfor %}
+    </div>
+{% endblock %}

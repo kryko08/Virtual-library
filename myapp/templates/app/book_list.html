@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
 {% block content %}
 
+    {% for message in get_flashed_messages() %}
+
+      <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    
+    {% endfor %}
+
 <section class="py-2 text-center container">
     <div class="row py-lg-2">
       <div class="col-lg-6 col-md-8 mx-auto">
@@ -39,16 +48,6 @@
       </div>
     </div>
   </section>
-
-{% for message in get_flashed_messages() %}
-	
-  <div class="alert alert-warning alert-dismissible fade show" role="alert">
-    {{ message }}
-    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-  </div>
-
-  
-{% endfor %}
 
 <div class="row row-cols-1 row-cols-sm-3 row-cols-md-5 g-3">
     {% for book in books %}
